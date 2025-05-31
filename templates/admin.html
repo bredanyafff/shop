@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block title %}
+<title>Админ-панель</title>
+{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <h1 class="mb-4">Админ-панель</h1>
+
+    <!-- Форма добавления товара -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2>Добавить новый товар</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('admin') }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="title" class="form-label">Название товара *</label>
+                    <input type="text" class="form-control" id="title" name="title" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="price" class="form-label">Цена (руб) *</label>
+                    <input type="number" class="form-control" id="price" name="price" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="text" class="form-label">Описание</label>
+                    <textarea class="form-control" id="text" name="text" rows="3"></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label for="photo_path" class="form-label">Изображение товара</label>
+                    <input type="file" class="form-control" id="photo_path" name="photo_path" accept="image/*">
+                </div>
+
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="isActive" name="isActive" checked>
+                    <label class="form-check-label" for="isActive">Активен</label>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Добавить товар</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Список товаров -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2>Список товаров</h2>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Цена</th>
+                            <th>Статус</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ item.id }}</td>
+                            <td>{{ item.title }}</td>
+                            <td>{{ item.price }} руб.</td>
+                            <td>
+                                {% if item.isActive %}
+                                    <span class="badge bg-success">Активен</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Неактивен</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="POST" action="{{ url_for('delete_item', item_id=item.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Удалить этот товар?')">
+                                        Удалить
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Список пользователей -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Список пользователей</h2>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Имя</th>
+                            <th>Email</th>
+                            <th>Дата регистрации</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.created_at.strftime('%d.%m.%Y') }}</td>
+                            <td>
+                                {% if user.id != current_user.id %}
+                                <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Удалить этого пользователя?')">
+                                        Удалить
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

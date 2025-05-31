@@ -6,6 +6,12 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 
+'''
+admin
+admin@example.com
+123456
+'''
+
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///shop.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -56,14 +62,16 @@ def homepage():
     return render_template('homepage.html', data=items)
 
 
-# @app.route('/login')
-# def login():
-#     return render_template('login.html')
-
-
 @app.route('/admin', methods=['GET', 'POST'])
-def addItem():
-    if request.method == 'POST':
+@login_required
+def admin():
+    # Простая проверка на админа (в реальном проекте лучше использовать роли)
+    if current_user.username != 'admin':
+        flash('Доступ запрещен', 'danger')
+        return redirect(url_for('homepage'))
+
+    # Обработка добавления товара
+    if request.method == 'POST' and 'title' in request.form:
         try:
             title = request.form.get('title')
             price = int(request.form.get('price'))
@@ -88,14 +96,71 @@ def addItem():
 
             db.session.add(new_item)
             db.session.commit()
-            return redirect(url_for('homepage'))
+            flash('Товар успешно добавлен', 'success')
+            return redirect(url_for('admin'))
 
         except Exception as e:
             db.session.rollback()
-            print(f"Error: {str(e)}")  # Для отладки
-            return f"Ошибка при добавлении товара: {str(e)}", 500
+            flash(f'Ошибка при добавлении товара: {str(e)}', 'danger')
+            return redirect(url_for('admin'))
 
-    return render_template('additem.html')
+    # Получаем списки товаров и пользователей
+    items = Item.query.order_by(Item.id).all()
+    users = User.query.order_by(User.id).all()
+
+    return render_template('admin.html', items=items, users=users)
+
+
+@app.route('/admin/delete_item/<int:item_id>', methods=['POST'])
+@login_required
+def delete_item(item_id):
+    if current_user.username != 'admin':
+        flash('Доступ запрещен', 'danger')
+        return redirect(url_for('homepage'))
+
+    item = Item.query.get_or_404(item_id)
+
+    try:
+        # Удаляем файл изображения, если он существует
+        if item.photo_path:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], item.photo_path.replace('uploads/', ''))
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+        db.session.delete(item)
+        db.session.commit()
+        flash('Товар успешно удален', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при удалении товара: {str(e)}', 'danger')
+
+    return redirect(url_for('admin'))
+
+
+@app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if current_user.username != 'admin':
+        flash('Доступ запрещен', 'danger')
+        return redirect(url_for('homepage'))
+
+    if current_user.id == user_id:
+        flash('Вы не можете удалить себя', 'danger')
+        return redirect(url_for('admin'))
+
+    user = User.query.get_or_404(user_id)
+
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        flash('Пользователь успешно удален', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при удалении пользователя: {str(e)}', 'danger')
+
+    return redirect(url_for('admin'))
+
+
 
 @app.route('/cart')
 def cart():
@@ -179,7 +244,6 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('homepage'))
-
 
 if __name__ == "__main__":
     app.run(debug=True)
