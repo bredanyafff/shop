@@ -6,6 +6,17 @@
 
 {% block body %}
 <main class="container mt-5">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
     <div class="row row-cols-1 row-cols-md-3 g-4">
         {% for item in data %}
         <div class="col">
@@ -21,12 +32,10 @@
                     <div class="mt-auto">
                         <h4 class="text-primary">{{ item.price }} <small class="text-body-secondary">руб.</small></h4>
                         <div class="d-grid gap-2 mt-3">
-                            <button class="btn btn-primary add-to-cart" data-item-id="{{ item.id }}">
-                                В корзину
-                                {% if 'cart' in session and item.id|string in session['cart'] %}
-                                ({{ session['cart'][item.id|string] }})
-                                {% endif %}
-                            </button>
+                            <form action="{{ url_for('add_to_cart') }}" method="post">
+                                <input type="hidden" name="item_id" value="{{ item.id }}">
+                                <button type="submit" class="btn btn-primary">В корзину</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -36,19 +45,13 @@
     </div>
 </main>
 
-<style>
-    .card {
-        transition: transform 0.2s;
-    }
-    .card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-    }
-    .btn-primary {
-        transition: all 0.3s;
-    }
-    .btn-success {
-        transition: all 0.3s;
-    }
-</style>
+<!--&lt;!&ndash; Добавим скрипт для показа модального окна &ndash;&gt;-->
+<!--<script>-->
+<!--    $(document).ready(function() {-->
+<!--        {% if 'show_cart_notification' in session and session['show_cart_notification'] %}-->
+<!--            $('#cartModal').modal('show');-->
+<!--            {% set _ = session.pop('show_cart_notification', None) %}-->
+<!--        {% endif %}-->
+<!--    });-->
+<!--</script>-->
 {% endblock %}

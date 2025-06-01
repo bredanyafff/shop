@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
@@ -10,6 +10,7 @@ from flask_login import UserMixin, LoginManager, login_user, login_required, log
 admin
 admin@example.com
 123456
+КОРЗИНА ОЧИЩЕНА И КОРЗИНА УЖЕ ПУСТА ДОЛЖНЫ ОТОБРАЖАТЬСЯ НА СТРАНИЦЕ КОРЗИНЫ А НЕ НА ГЛАВНОЙ СТР
 '''
 
 app = Flask(__name__)
@@ -55,11 +56,26 @@ class Item(db.Model):
     text = db.Column(db.Text)
     isActive = db.Column(db.Boolean, default=True)
 
+class CartItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey('item.id'), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    user = db.relationship('User', backref=db.backref('cart_items', lazy=True))
+    item = db.relationship('Item', backref=db.backref('cart_items', lazy=True))
+
 
 @app.route('/')
 def homepage():
-    items = Item.query.order_by(Item.price).all()
-    return render_template('homepage.html', data=items)
+    items = Item.query.filter_by(isActive=True).order_by(Item.price).all()
+
+    # Получаем количество товаров в корзине текущего пользователя
+    cart_items_count = 0
+    if current_user.is_authenticated:
+        cart_items = CartItem.query.filter_by(user_id=current_user.id).all()
+        cart_items_count = sum(item.quantity for item in cart_items)
+
+    return render_template('homepage.html', data=items, cart_items_count=cart_items_count)
 
 
 @app.route('/admin', methods=['GET', 'POST'])
@@ -161,17 +177,103 @@ def delete_user(user_id):
     return redirect(url_for('admin'))
 
 
+@app.route('/add_to_cart', methods=['POST'])
+@login_required
+def add_to_cart():
+    item_id = request.form.get('item_id')
+    item = Item.query.get_or_404(item_id)
+    user_id = current_user.id
+
+    # Проверяем, есть ли уже такой товар в корзине пользователя
+    cart_item = CartItem.query.filter_by(user_id=user_id, item_id=item_id).first()
+
+    if cart_item:
+        # Если товар уже есть в корзине, увеличиваем количество
+        cart_item.quantity += 1
+    else:
+        # Если товара нет в корзине, добавляем его
+        cart_item = CartItem(user_id=user_id, item_id=item_id, quantity=1)
+        db.session.add(cart_item)
+
+    db.session.commit()
+    return redirect(url_for('homepage'))
+
+@app.route('/update_cart', methods=['POST'])
+@login_required
+def update_cart():
+    item_id = request.form.get('item_id')
+    action = request.form.get('action')
+    user_id = current_user.id
+
+    cart_item = CartItem.query.filter_by(user_id=user_id, item_id=item_id).first()
+
+    if not cart_item:
+        return redirect(url_for('cart'))
+
+    if action == 'increase':
+        cart_item.quantity += 1
+    elif action == 'decrease':
+        cart_item.quantity -= 1
+        if cart_item.quantity <= 0:
+            db.session.delete(cart_item)
+
+    db.session.commit()
+    return redirect(url_for('cart'))
+
+@app.route('/remove_from_cart', methods=['POST'])
+@login_required
+def remove_from_cart():
+    item_id = request.form.get('item_id')
+    user_id = current_user.id
+
+    cart_item = CartItem.query.filter_by(user_id=user_id, item_id=item_id).first()
+
+    if cart_item:
+        db.session.delete(cart_item)
+        db.session.commit()
+
+    return redirect(url_for('cart'))
 
 @app.route('/cart')
+@login_required
 def cart():
-    return render_template('cart.html')
+    user_id = current_user.id
+    cart_items = CartItem.query.filter_by(user_id=user_id).all()
+    total_price = 0
+    total_items = 0
 
+    items = []
+    for cart_item in cart_items:
+        item = Item.query.get(cart_item.item_id)
+        if item:
+            item.quantity = cart_item.quantity
+            item.total_price = item.price * cart_item.quantity
+            items.append(item)
+            total_price += item.total_price
+            total_items += cart_item.quantity
+
+    return render_template('cart.html', cart_items=items, total_price=total_price, total_items=total_items, cart_items_count=total_items)
+
+
+@app.route('/clear_cart', methods=['POST'])
+@login_required
+def clear_cart():
+    user_id = current_user.id
+    cart_items = CartItem.query.filter_by(user_id=user_id).all()
+
+    for cart_item in cart_items:
+        db.session.delete(cart_item)
+
+    db.session.commit()
+    flash('Корзина успешно очищена', 'success')
+    return redirect(url_for('cart'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('homepage'))
 
+    cart_items_count = 0
     if request.method == 'POST':
         username = request.form.get('username')
         email = request.form.get('email')
@@ -213,7 +315,7 @@ def register():
             flash('Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.', 'danger')
             return redirect(url_for('register'))
 
-    return render_template('register.html')
+    return render_template('register.html', cart_items_count=cart_items_count)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -221,6 +323,7 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('homepage'))
 
+    cart_items_count = 0
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
@@ -236,7 +339,7 @@ def login():
         next_page = request.args.get('next')
         return redirect(next_page) if next_page else redirect(url_for('homepage'))
 
-    return render_template('login.html')
+    return render_template('login.html', cart_items_count=cart_items_count)
 
 
 @app.route('/logout')

@@ -7,7 +7,7 @@
 {% block body %}
 <main class="container">
     <h2 class="mb-4">Ваша корзина</h2>
-    
+
     {% if cart_items %}
     <div class="table-responsive">
         <table class="table">
@@ -26,27 +26,25 @@
                     <td>{{ item.title }}</td>
                     <td>{{ item.price }} руб.</td>
                     <td>
-                        <div class="input-group" style="width: 120px;">
-                            <button class="btn btn-outline-secondary update-quantity" 
-                                    data-item-id="{{ item.id }}" 
-                                    data-action="decrease">-</button>
-                            <input type="text" class="form-control text-center quantity-input" 
-                                   value="{{ item.quantity }}" data-item-id="{{ item.id }}">
-                            <button class="btn btn-outline-secondary update-quantity" 
-                                    data-item-id="{{ item.id }}" 
-                                    data-action="increase">+</button>
-                        </div>
+                        <form action="{{ url_for('update_cart') }}" method="post" class="d-flex">
+                            <input type="hidden" name="item_id" value="{{ item.id }}">
+                            <button type="submit" name="action" value="decrease" class="btn btn-outline-secondary">-</button>
+                            <input type="text" class="form-control mx-2 text-center" value="{{ item.quantity }}" readonly>
+                            <button type="submit" name="action" value="increase" class="btn btn-outline-secondary">+</button>
+                        </form>
                     </td>
                     <td>{{ item.price * item.quantity }} руб.</td>
                     <td>
-                        <button class="btn btn-danger btn-sm remove-from-cart" 
-                                data-item-id="{{ item.id }}">Удалить</button>
+                        <form action="{{ url_for('remove_from_cart') }}" method="post">
+                            <input type="hidden" name="item_id" value="{{ item.id }}">
+                            <button type="submit" class="btn btn-danger">Удалить</button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        
+
         <div class="d-flex justify-content-end">
             <div class="card" style="width: 300px;">
                 <div class="card-body">
@@ -63,5 +61,8 @@
         Ваша корзина пуста. <a href="/" class="alert-link">Вернуться к покупкам</a>
     </div>
     {% endif %}
+    <form action="{{ url_for('clear_cart') }}" method="POST" style="display: inline;">
+        <button type="submit" class="btn btn-danger">Очистить корзину</button>
+    </form>
 </main>
 {% endblock %}
