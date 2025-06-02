@@ -128,4 +128,33 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<!-- Добавьте этот скрипт в конец шаблона -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Для каждого товара
+    document.querySelectorAll('.product-form').forEach(form => {
+        const addButton = form.querySelector('.add-to-cart-btn');
+        const sizeSelect = form.querySelector('select[name="size"]');
+        const colorSelect = form.querySelector('select[name="color"]');
+
+        // Функция проверки состояния кнопки
+        function updateButtonState() {
+            const hasSizes = sizeSelect !== null;
+            const hasColors = colorSelect !== null;
+            const sizeSelected = !hasSizes || sizeSelect.value !== '';
+            const colorSelected = !hasColors || colorSelect.value !== '';
+
+            addButton.disabled = !(sizeSelected && colorSelected);
+        }
+
+        // Навешиваем обработчики на изменение выбора
+        if (sizeSelect) sizeSelect.addEventListener('change', updateButtonState);
+        if (colorSelect) colorSelect.addEventListener('change', updateButtonState);
+
+        // Инициализируем состояние кнопки
+        updateButtonState();
+    });
+});
+</script>
+
 {% endblock %}

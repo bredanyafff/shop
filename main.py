@@ -270,6 +270,15 @@ def add_to_cart():
     selected_size = request.form.get('size')
     selected_color = request.form.get('color')
 
+    # Проверяем, что выбраны и размер, и цвет (если они есть у товара)
+    if item.sizes and not selected_size:
+        flash('Пожалуйста, выберите размер', 'danger')
+        return redirect(url_for('homepage'))
+
+    if item.colors and not selected_color:
+        flash('Пожалуйста, выберите цвет', 'danger')
+        return redirect(url_for('homepage'))
+
     # Инициализируем доплаты
     size_adjustment = 0
     color_adjustment = 0
@@ -311,6 +320,7 @@ def add_to_cart():
         db.session.add(cart_item)
 
     db.session.commit()
+    flash('Товар успешно добавлен в корзину', 'success')
     return redirect(url_for('homepage'))
 
 
