@@ -14,6 +14,7 @@
             <thead>
                 <tr>
                     <th scope="col">Товар</th>
+                    <th scope="col">Атрибуты</th>
                     <th scope="col">Цена</th>
                     <th scope="col">Количество</th>
                     <th scope="col">Итого</th>
@@ -24,10 +25,14 @@
             {% for cart_item in cart_items %}
             <tr>
                 <td>{{ cart_item.item.title }}</td>
-                <td>{{ cart_item.price }} руб.</td>  <!-- Используем price из CartItem -->
+                <td>
+                    {% if cart_item.size %}Размер: {{ cart_item.size }}<br>{% endif %}
+                    {% if cart_item.color %}Цвет: {{ cart_item.color }}{% endif %}
+                </td>
+                <td>{{ cart_item.price }} руб.</td>
                 <td>
                     <form action="{{ url_for('update_cart') }}" method="post" class="d-flex">
-                        <input type="hidden" name="item_id" value="{{ cart_item.item.id }}">
+                        <input type="hidden" name="item_id" value="{{ cart_item.id }}">
                         <button type="submit" name="action" value="decrease" class="btn btn-outline-secondary">-
                         </button>
                         <input type="text" class="form-control mx-2 text-center" value="{{ cart_item.quantity }}"
@@ -36,10 +41,10 @@
                         </button>
                     </form>
                 </td>
-                <td>{{ cart_item.price * cart_item.quantity }} руб.</td>  <!-- Используем price из CartItem -->
+                <td>{{ cart_item.price * cart_item.quantity }} руб.</td>
                 <td>
                     <form action="{{ url_for('remove_from_cart') }}" method="post">
-                        <input type="hidden" name="item_id" value="{{ cart_item.item.id }}">
+                        <input type="hidden" name="item_id" value="{{ cart_item.id }}">
                         <button type="submit" class="btn btn-danger">Удалить</button>
                     </form>
                 </td>

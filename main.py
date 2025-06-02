@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
@@ -71,13 +71,11 @@ class CartItem(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     item_id = db.Column(db.Integer, db.ForeignKey('item.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
-    price = db.Column(db.Integer, nullable=False)  # Добавьте эту строку
+    price = db.Column(db.Integer, nullable=False)
+    size = db.Column(db.String(50))  # Добавляем поле для размера
+    color = db.Column(db.String(50))  # Добавляем поле для цвета
     user = db.relationship('User', backref=db.backref('cart_items', lazy=True))
     item = db.relationship('Item', backref=db.backref('cart_items', lazy=True))
-
-
-
-import json
 
 @app.route('/')
 def homepage():
@@ -268,7 +266,7 @@ def add_to_cart():
     item = Item.query.get_or_404(item_id)
     user_id = current_user.id
 
-    # Получаем выбранные размер и цвет, если они есть
+    # Получаем выбранные размер и цвет
     selected_size = request.form.get('size')
     selected_color = request.form.get('color')
 
@@ -280,46 +278,52 @@ def add_to_cart():
     if selected_size and item.sizes:
         sizes = json.loads(item.sizes)
         size_adjustment = sizes.get(selected_size, 0)
-        logger.debug(f'Selected Size: {selected_size}, Size Adjustment: {size_adjustment}')
 
     # Определяем доплату за цвет
     if selected_color and item.colors:
         colors = json.loads(item.colors)
         color_adjustment = colors.get(selected_color, 0)
-        logger.debug(f'Selected Color: {selected_color}, Color Adjustment: {color_adjustment}')
 
-    # Вычисляем итоговую цену с учетом доплат за размер и цвет
+    # Вычисляем итоговую цену с учетом доплат
     final_price = item.price + size_adjustment + color_adjustment
-    logger.debug(f'Base Price: {item.price}, Total Price: {final_price}')
 
-    # Проверяем, есть ли уже такой товар в корзине пользователя
-    cart_item = CartItem.query.filter_by(user_id=user_id, item_id=item_id).first()
+    # Проверяем, есть ли уже такой товар в корзине с ТАКИМИ ЖЕ размером и цветом
+    cart_item = CartItem.query.filter_by(
+        user_id=user_id,
+        item_id=item_id,
+        size=selected_size,
+        color=selected_color
+    ).first()
 
     if cart_item:
-        # Если товар уже есть в корзине, увеличиваем количество
+        # Если товар уже есть в корзине с такими же атрибутами, увеличиваем количество
         cart_item.quantity += 1
     else:
-        # Если товара нет в корзине, добавляем его
-        cart_item = CartItem(user_id=user_id, item_id=item_id, quantity=1, price=final_price)
+        # Если товара нет в корзине или атрибуты другие, добавляем новую позицию
+        cart_item = CartItem(
+            user_id=user_id,
+            item_id=item_id,
+            quantity=1,
+            price=final_price,
+            size=selected_size,
+            color=selected_color
+        )
         db.session.add(cart_item)
 
     db.session.commit()
     return redirect(url_for('homepage'))
 
 
-
-
 @app.route('/update_cart', methods=['POST'])
 @login_required
 def update_cart():
-    item_id = request.form.get('item_id')
+    cart_item_id = request.form.get('item_id')  # Теперь это id записи в корзине
     action = request.form.get('action')
-    user_id = current_user.id
 
-    cart_item = CartItem.query.filter_by(user_id=user_id, item_id=item_id).first()
+    cart_item = CartItem.query.get_or_404(cart_item_id)
 
-    if not cart_item:
-        return redirect(url_for('cart'))
+    if cart_item.user_id != current_user.id:
+        abort(403)
 
     if action == 'increase':
         cart_item.quantity += 1
@@ -331,17 +335,18 @@ def update_cart():
     db.session.commit()
     return redirect(url_for('cart'))
 
+
 @app.route('/remove_from_cart', methods=['POST'])
 @login_required
 def remove_from_cart():
-    item_id = request.form.get('item_id')
-    user_id = current_user.id
+    cart_item_id = request.form.get('item_id')  # Теперь это id записи в корзине
+    cart_item = CartItem.query.get_or_404(cart_item_id)
 
-    cart_item = CartItem.query.filter_by(user_id=user_id, item_id=item_id).first()
+    if cart_item.user_id != current_user.id:
+        abort(403)
 
-    if cart_item:
-        db.session.delete(cart_item)
-        db.session.commit()
+    db.session.delete(cart_item)
+    db.session.commit()
 
     return redirect(url_for('cart'))
 
@@ -382,7 +387,6 @@ def clear_cart():
         db.session.delete(cart_item)
 
     db.session.commit()
-    flash('Корзина успешно очищена', 'success')
     return redirect(url_for('cart'))
 
 @app.route('/register', methods=['GET', 'POST'])
