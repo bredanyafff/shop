@@ -6,6 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 import json
+import logging
 
 '''
 admin
@@ -13,6 +14,8 @@ admin@example.com
 123456
 КОРЗИНА ОЧИЩЕНА И КОРЗИНА УЖЕ ПУСТА ДОЛЖНЫ ОТОБРАЖАТЬСЯ НА СТРАНИЦЕ КОРЗИНЫ А НЕ НА ГЛАВНОЙ СТР
 '''
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 # Замените строку с конфигурацией БД на:
@@ -94,8 +97,10 @@ def homepage():
 
     return render_template('homepage.html', data=items, cart_items_count=cart_items_count)
 
-
-
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -104,7 +109,6 @@ def admin():
         flash('Доступ запрещен', 'danger')
         return redirect(url_for('homepage'))
 
-    # Получаем количество товаров в корзине текущего пользователя
     cart_items_count = 0
     if current_user.is_authenticated:
         cart_items = CartItem.query.filter_by(user_id=current_user.id).all()
@@ -112,15 +116,43 @@ def admin():
 
     if request.method == 'POST' and 'title' in request.form:
         try:
-            title = request.form.get('title')
-            price = int(request.form.get('price')) if request.form.get('price') else 0
+            # Логируем все данные формы для отладки
+            logger.debug(f"Form data received: {request.form}")
 
+            # Получаем данные из формы
+            title = request.form.get('title')
+            price_input = request.form.get('price')
             text = request.form.get('text')
             isActive = True if request.form.get('isActive') == 'on' else False
 
+            # Валидация обязательных полей
+            if not title:
+                flash('Название товара обязательно для заполнения', 'danger')
+                return redirect(url_for('admin'))
+
+            if not price_input:
+                flash('Цена товара обязательна для заполнения', 'danger')
+                return redirect(url_for('admin'))
+
+            try:
+                price = int(price_input)
+                if price <= 0:
+                    flash('Цена должна быть положительным числом', 'danger')
+                    return redirect(url_for('admin'))
+            except ValueError:
+                flash('Некорректное значение цены. Введите целое число.', 'danger')
+                return redirect(url_for('admin'))
+
+            logger.debug(f'Creating item: Title="{title}", Price={price}')
+
+            # Обработка загрузки изображения
             photo_path = None
             photo = request.files.get('photo_path')
             if photo and photo.filename != '':
+                if not allowed_file(photo.filename):
+                    flash('Недопустимый формат файла', 'danger')
+                    return redirect(url_for('admin'))
+
                 filename = secure_filename(photo.filename)
                 photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                 photo_path = f'uploads/{filename}'
@@ -130,49 +162,54 @@ def admin():
             size_adjustments = request.form.getlist('size_adjustments[]')
             sizes = {}
             for size_id, adjustment in zip(size_ids, size_adjustments):
-                if size_id and adjustment:  # Проверка на пустые значения
+                if size_id.strip():  # Проверяем, что название размера не пустое
                     try:
-                        sizes[size_id] = int(adjustment)
+                        sizes[size_id] = int(adjustment) if adjustment else 0
                     except ValueError:
                         sizes[size_id] = 0
-            sizes = json.dumps(sizes)
+            sizes_json = json.dumps(sizes, ensure_ascii=False)
 
             # Обработка цветов
             color_ids = request.form.getlist('color_ids[]')
             color_adjustments = request.form.getlist('color_adjustments[]')
             colors = {}
             for color_id, adjustment in zip(color_ids, color_adjustments):
-                if color_id and adjustment:  # Проверка на пустые значения
+                if color_id.strip():  # Проверяем, что название цвета не пустое
                     try:
-                        colors[color_id] = int(adjustment)
+                        colors[color_id] = int(adjustment) if adjustment else 0
                     except ValueError:
                         colors[color_id] = 0
-            colors = json.dumps(colors)
+            colors_json = json.dumps(colors, ensure_ascii=False)
 
+            # Создание нового товара
             new_item = Item(
                 title=title,
                 price=price,
                 text=text,
                 photo_path=photo_path,
                 isActive=isActive,
-                sizes=sizes,
-                colors=colors
+                sizes=sizes_json,
+                colors=colors_json
             )
 
             db.session.add(new_item)
             db.session.commit()
+
             flash('Товар успешно добавлен', 'success')
             return redirect(url_for('admin'))
 
         except Exception as e:
             db.session.rollback()
+            logger.error(f'Error adding item: {str(e)}', exc_info=True)
             flash(f'Ошибка при добавлении товара: {str(e)}', 'danger')
 
     items = Item.query.order_by(Item.id).all()
     users = User.query.order_by(User.id).all()
 
-    return render_template('admin.html', items=items, users=users, cart_items_count=cart_items_count)
-
+    return render_template('admin.html',
+                           items=items,
+                           users=users,
+                           cart_items_count=cart_items_count)
 
 @app.route('/admin/delete_item/<int:item_id>', methods=['POST'])
 @login_required
@@ -232,11 +269,28 @@ def add_to_cart():
     user_id = current_user.id
 
     # Получаем выбранные размер и цвет, если они есть
-    size_adjustment = int(request.form.get('size_adjustment', 0))
-    color_adjustment = int(request.form.get('color_adjustment', 0))
+    selected_size = request.form.get('size')
+    selected_color = request.form.get('color')
+
+    # Инициализируем доплаты
+    size_adjustment = 0
+    color_adjustment = 0
+
+    # Определяем доплату за размер
+    if selected_size and item.sizes:
+        sizes = json.loads(item.sizes)
+        size_adjustment = sizes.get(selected_size, 0)
+        logger.debug(f'Selected Size: {selected_size}, Size Adjustment: {size_adjustment}')
+
+    # Определяем доплату за цвет
+    if selected_color and item.colors:
+        colors = json.loads(item.colors)
+        color_adjustment = colors.get(selected_color, 0)
+        logger.debug(f'Selected Color: {selected_color}, Color Adjustment: {color_adjustment}')
 
     # Вычисляем итоговую цену с учетом доплат за размер и цвет
     final_price = item.price + size_adjustment + color_adjustment
+    logger.debug(f'Base Price: {item.price}, Total Price: {final_price}')
 
     # Проверяем, есть ли уже такой товар в корзине пользователя
     cart_item = CartItem.query.filter_by(user_id=user_id, item_id=item_id).first()
@@ -251,6 +305,8 @@ def add_to_cart():
 
     db.session.commit()
     return redirect(url_for('homepage'))
+
+
 
 
 @app.route('/update_cart', methods=['POST'])
@@ -302,7 +358,8 @@ def cart():
         item = Item.query.get(cart_item.item_id)
         if item:
             item.quantity = cart_item.quantity
-            item.total_price = item.price * cart_item.quantity
+            # Используем price из CartItem, а не из Item
+            item.total_price = cart_item.price * cart_item.quantity
             items.append(cart_item)
             total_price += item.total_price
             total_items += cart_item.quantity

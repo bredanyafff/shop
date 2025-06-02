@@ -34,10 +34,10 @@
                     <div class="mb-3">
                         <label for="size-{{ item.id }}" class="form-label">Размер:</label>
                         <select class="form-select" id="size-{{ item.id }}">
-                            <option selected disabled value="0">Выберите размер</option>
+                            <option selected disabled value="">Выберите размер</option>
                             {% if item.sizes %}
                                 {% for size_id, adjustment in item.sizes.items() %}
-                                    <option value="{{ adjustment }}">{{ size_id }}</option>
+                                    <option value="{{ size_id }}" data-adjustment="{{ adjustment }}">{{ size_id }} {% if adjustment > 0 %}(+{{ adjustment }} руб.){% endif %}</option>
                                 {% endfor %}
                             {% endif %}
                         </select>
@@ -47,10 +47,10 @@
                     <div class="mb-3">
                         <label for="color-{{ item.id }}" class="form-label">Цвет:</label>
                         <select class="form-select" id="color-{{ item.id }}">
-                            <option selected disabled value="0">Выберите цвет</option>
+                            <option selected disabled value="">Выберите цвет</option>
                             {% if item.colors %}
                                 {% for color_id, adjustment in item.colors.items() %}
-                                    <option value="{{ adjustment }}">{{ color_id }}</option>
+                                    <option value="{{ color_id }}" data-adjustment="{{ adjustment }}">{{ color_id }} {% if adjustment > 0 %}(+{{ adjustment }} руб.){% endif %}</option>
                                 {% endfor %}
                             {% endif %}
                         </select>
@@ -63,6 +63,8 @@
                                 <input type="hidden" name="item_id" value="{{ item.id }}">
                                 <input type="hidden" id="size-adjustment-{{ item.id }}" name="size_adjustment" value="0">
                                 <input type="hidden" id="color-adjustment-{{ item.id }}" name="color_adjustment" value="0">
+                                <input type="hidden" id="selected-size-{{ item.id }}" name="size" value="">
+                                <input type="hidden" id="selected-color-{{ item.id }}" name="color" value="">
                                 <button type="submit" class="btn btn-primary">В корзину</button>
                             </form>
                         </div>
@@ -77,38 +79,53 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     {% for item in data %}
-    const sizeSelect{{ item.id }} = document.getElementById('size-{{ item.id }}');
-    const colorSelect{{ item.id }} = document.getElementById('color-{{ item.id }}');
-    const priceElement{{ item.id }} = document.getElementById('price-{{ item.id }}');
-    const sizeAdjustmentInput{{ item.id }} = document.getElementById('size-adjustment-{{ item.id }}');
-    const colorAdjustmentInput{{ item.id }} = document.getElementById('color-adjustment-{{ item.id }}');
-    const basePrice{{ item.id }} = {{ item.price }};
+    (function() {
+        const sizeSelect = document.getElementById('size-{{ item.id }}');
+        const colorSelect = document.getElementById('color-{{ item.id }}');
+        const priceElement = document.getElementById('price-{{ item.id }}');
+        const sizeAdjustmentInput = document.getElementById('size-adjustment-{{ item.id }}');
+        const colorAdjustmentInput = document.getElementById('color-adjustment-{{ item.id }}');
+        const selectedSizeInput = document.getElementById('selected-size-{{ item.id }}');
+        const selectedColorInput = document.getElementById('selected-color-{{ item.id }}');
+        const basePrice = {{ item.price }};
 
-    function updatePrice{{ item.id }}() {
-        let totalPrice = basePrice{{ item.id }};
-        let sizeAdjustment = 0;
-        let colorAdjustment = 0;
+        function updatePrice() {
+            let totalPrice = basePrice;
+            let sizeAdjustment = 0;
+            let colorAdjustment = 0;
 
-        if (sizeSelect{{ item.id }}.value) {
-            sizeAdjustment = parseInt(sizeSelect{{ item.id }}.value);
-            sizeAdjustmentInput{{ item.id }}.value = sizeAdjustment;
+            console.log('Base Price:', basePrice);
+
+            if (sizeSelect.value) {
+                const selectedOption = sizeSelect.options[sizeSelect.selectedIndex];
+                sizeAdjustment = parseInt(selectedOption.getAttribute('data-adjustment')) || 0;
+                console.log('Selected Size:', sizeSelect.value, 'Size Adjustment:', sizeAdjustment);
+                sizeAdjustmentInput.value = sizeAdjustment;
+                selectedSizeInput.value = sizeSelect.value;
+            }
+
+            if (colorSelect.value) {
+                const selectedOption = colorSelect.options[colorSelect.selectedIndex];
+                colorAdjustment = parseInt(selectedOption.getAttribute('data-adjustment')) || 0;
+                console.log('Selected Color:', colorSelect.value, 'Color Adjustment:', colorAdjustment);
+                colorAdjustmentInput.value = colorAdjustment;
+                selectedColorInput.value = colorSelect.value;
+            }
+
+            totalPrice = basePrice + sizeAdjustment + colorAdjustment;
+            console.log('Total Price:', totalPrice);
+            priceElement.textContent = totalPrice + ' руб.';
         }
-        if (colorSelect{{ item.id }}.value) {
-            colorAdjustment = parseInt(colorSelect{{ item.id }}.value);
-            colorAdjustmentInput{{ item.id }}.value = colorAdjustment;
+
+        if (sizeSelect) {
+            sizeSelect.addEventListener('change', updatePrice);
         }
-
-        totalPrice += sizeAdjustment + colorAdjustment;
-        priceElement{{ item.id }}.textContent = totalPrice + ' руб.';
-    }
-
-    if (sizeSelect{{ item.id }}) {
-        sizeSelect{{ item.id }}.addEventListener('change', updatePrice{{ item.id }});
-    }
-    if (colorSelect{{ item.id }}) {
-        colorSelect{{ item.id }}.addEventListener('change', updatePrice{{ item.id }});
-    }
+        if (colorSelect) {
+            colorSelect.addEventListener('change', updatePrice);
+        }
+    })();
     {% endfor %}
 });
 </script>
+
 {% endblock %}

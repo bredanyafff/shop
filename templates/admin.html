@@ -32,8 +32,8 @@
                 </div>
 
                 <div class="mb-3">
-                    <label for="base_price" class="form-label">Базовая цена (руб) *</label>
-                    <input type="number" class="form-control" id="base_price" name="base_price" required>
+                    <label for="price" class="form-label">Базовая цена (руб) *</label>
+                    <input type="number" class="form-control" id="price" name="price" required>
                 </div>
 
                 <div class="mb-3">
@@ -100,7 +100,7 @@
                         <tr>
                             <td>{{ item.id }}</td>
                             <td>{{ item.title }}</td>
-                            <td>{{ item.base_price }} руб.</td>
+                            <td>{{ item.price }} руб.</td>
                             <td>
                                 {% if item.isActive %}
                                     <span class="badge bg-success">Активен</span>
