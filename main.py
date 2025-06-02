@@ -12,7 +12,6 @@ import logging
 admin
 admin@example.com
 123456
-КОРЗИНА ОЧИЩЕНА И КОРЗИНА УЖЕ ПУСТА ДОЛЖНЫ ОТОБРАЖАТЬСЯ НА СТРАНИЦЕ КОРЗИНЫ А НЕ НА ГЛАВНОЙ СТР
 '''
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -76,6 +75,25 @@ class CartItem(db.Model):
     color = db.Column(db.String(50))  # Добавляем поле для цвета
     user = db.relationship('User', backref=db.backref('cart_items', lazy=True))
     item = db.relationship('Item', backref=db.backref('cart_items', lazy=True))
+
+def create_admin_user():
+    with app.app_context():
+        # Проверяем, существует ли уже пользователь admin
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            try:
+                # Создаем нового пользователя admin
+                admin = User(
+                    username='admin',
+                    email='admin@example.com'
+                )
+                admin.set_password('123456')
+                db.session.add(admin)
+                db.session.commit()
+                print("Admin user created successfully!")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error creating admin user: {str(e)}")
 
 @app.route('/')
 def homepage():
@@ -480,4 +498,10 @@ def logout():
     return redirect(url_for('homepage'))
 
 if __name__ == "__main__":
+    # Создаем все таблицы в базе данных
+    with app.app_context():
+        db.create_all()
+
+    # Создаем пользователя admin при первом запуске
+    create_admin_user()
     app.run(debug=True)
