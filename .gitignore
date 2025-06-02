@@ -1,2 +1,14 @@
-.venv
-.gitignore
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.env
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+*.sqlite
+*.db
+*.log
