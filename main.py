@@ -386,22 +386,31 @@ def cart():
     total_price = 0
     total_items = 0
 
-    items = []
+    # Подготавливаем данные для отображения
+    items_with_details = []
     for cart_item in cart_items:
         item = Item.query.get(cart_item.item_id)
         if item:
-            item.quantity = cart_item.quantity
-            # Используем price из CartItem, а не из Item
-            item.total_price = cart_item.price * cart_item.quantity
-            items.append(cart_item)
-            total_price += item.total_price
+            total_price += cart_item.price * cart_item.quantity
             total_items += cart_item.quantity
+            items_with_details.append({
+                'id': cart_item.id,
+                'item': item,
+                'quantity': cart_item.quantity,
+                'price': cart_item.price,
+                'size': cart_item.size,
+                'color': cart_item.color,
+                'total_price': cart_item.price * cart_item.quantity
+            })
 
     # Получаем количество товаров в корзине текущего пользователя
     cart_items_count = total_items
 
-    return render_template('cart.html', cart_items=items, total_price=total_price, total_items=total_items, cart_items_count=cart_items_count)
-
+    return render_template('cart.html',
+                         cart_items=items_with_details,
+                         total_price=total_price,
+                         total_items=total_items,
+                         cart_items_count=cart_items_count)
 
 
 

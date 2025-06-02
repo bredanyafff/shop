@@ -14,6 +14,7 @@
             <thead>
                 <tr>
                     <th scope="col">Товар</th>
+                    <th scope="col">Фото</th>
                     <th scope="col">Атрибуты</th>
                     <th scope="col">Цена</th>
                     <th scope="col">Количество</th>
@@ -25,6 +26,15 @@
             {% for cart_item in cart_items %}
             <tr>
                 <td>{{ cart_item.item.title }}</td>
+                <td>
+                    {% if cart_item.item.photo_path %}
+                    <img src="{{ url_for('static', filename=cart_item.item.photo_path) }}"
+                         alt="{{ cart_item.item.title }}"
+                         style="max-width: 100px; max-height: 100px;">
+                    {% else %}
+                    <span>Нет фото</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% if cart_item.size %}Размер: {{ cart_item.size }}<br>{% endif %}
                     {% if cart_item.color %}Цвет: {{ cart_item.color }}{% endif %}
