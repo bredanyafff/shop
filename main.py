@@ -8,16 +8,19 @@ from flask_login import UserMixin, LoginManager, login_user, login_required, log
 import json
 import logging
 
+
 '''
 admin
 admin@example.com
 123456
 '''
+
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+
 app = Flask(__name__)
-# Замените строку с конфигурацией БД на:
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///shop.db')
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
     app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
@@ -26,9 +29,9 @@ app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['SECRET_KEY'] = '123'
 db = SQLAlchemy(app)
 
+
 # Создаем папку для загрузок, если ее нет
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
 
 
 # Настройка Flask-Login
@@ -36,6 +39,8 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+
+# Сущность пользователей
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), nullable=False, unique=True)
@@ -54,6 +59,7 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+# Сущность товаров
 class Item(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
@@ -65,6 +71,7 @@ class Item(db.Model):
     colors = db.Column(db.JSON)  # Хранит информацию о цветах и доплате
 
 
+# Сущность товаров в корзине
 class CartItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -75,6 +82,7 @@ class CartItem(db.Model):
     color = db.Column(db.String(50))  # Добавляем поле для цвета
     user = db.relationship('User', backref=db.backref('cart_items', lazy=True))
     item = db.relationship('Item', backref=db.backref('cart_items', lazy=True))
+
 
 def create_admin_user():
     with app.app_context():
@@ -95,6 +103,7 @@ def create_admin_user():
                 db.session.rollback()
                 print(f"Error creating admin user: {str(e)}")
 
+
 @app.route('/')
 def homepage():
     items = Item.query.filter_by(isActive=True).order_by(Item.price).all()
@@ -113,10 +122,12 @@ def homepage():
 
     return render_template('homepage.html', data=items, cart_items_count=cart_items_count)
 
+
 def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -226,6 +237,7 @@ def admin():
                            items=items,
                            users=users,
                            cart_items_count=cart_items_count)
+
 
 @app.route('/admin/delete_item/<int:item_id>', methods=['POST'])
 @login_required
@@ -345,7 +357,7 @@ def add_to_cart():
 @app.route('/update_cart', methods=['POST'])
 @login_required
 def update_cart():
-    cart_item_id = request.form.get('item_id')  # Теперь это id записи в корзине
+    cart_item_id = request.form.get('item_id')  # id записи в корзине
     action = request.form.get('action')
 
     cart_item = CartItem.query.get_or_404(cart_item_id)
@@ -367,7 +379,7 @@ def update_cart():
 @app.route('/remove_from_cart', methods=['POST'])
 @login_required
 def remove_from_cart():
-    cart_item_id = request.form.get('item_id')  # Теперь это id записи в корзине
+    cart_item_id = request.form.get('item_id')  # id записи в корзине
     cart_item = CartItem.query.get_or_404(cart_item_id)
 
     if cart_item.user_id != current_user.id:
@@ -377,6 +389,7 @@ def remove_from_cart():
     db.session.commit()
 
     return redirect(url_for('cart'))
+
 
 @app.route('/cart')
 @login_required
@@ -413,7 +426,6 @@ def cart():
                          cart_items_count=cart_items_count)
 
 
-
 @app.route('/clear_cart', methods=['POST'])
 @login_required
 def clear_cart():
@@ -425,6 +437,7 @@ def clear_cart():
 
     db.session.commit()
     return redirect(url_for('cart'))
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
