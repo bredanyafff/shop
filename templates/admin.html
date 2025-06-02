@@ -32,8 +32,8 @@
                 </div>
 
                 <div class="mb-3">
-                    <label for="price" class="form-label">Цена (руб) *</label>
-                    <input type="number" class="form-control" id="price" name="price" required>
+                    <label for="base_price" class="form-label">Базовая цена (руб) *</label>
+                    <input type="number" class="form-control" id="base_price" name="base_price" required>
                 </div>
 
                 <div class="mb-3">
@@ -44,6 +44,28 @@
                 <div class="mb-3">
                     <label for="photo_path" class="form-label">Изображение товара</label>
                     <input type="file" class="form-control" id="photo_path" name="photo_path" accept="image/*">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Размеры и доплата:</label>
+                    <div id="sizes-container">
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control" name="size_ids[]" placeholder="Название размера">
+                            <input type="number" class="form-control" name="size_adjustments[]" placeholder="Доплата за размер">
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="add-size">Добавить размер</button>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Цвета и доплата:</label>
+                    <div id="colors-container">
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control" name="color_ids[]" placeholder="Название цвета">
+                            <input type="number" class="form-control" name="color_adjustments[]" placeholder="Доплата за цвет">
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="add-color">Добавить цвет</button>
                 </div>
 
                 <div class="mb-3 form-check">
@@ -78,7 +100,7 @@
                         <tr>
                             <td>{{ item.id }}</td>
                             <td>{{ item.title }}</td>
-                            <td>{{ item.price }} руб.</td>
+                            <td>{{ item.base_price }} руб.</td>
                             <td>
                                 {% if item.isActive %}
                                     <span class="badge bg-success">Активен</span>
@@ -142,4 +164,28 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.getElementById('add-size').addEventListener('click', function() {
+        const container = document.getElementById('sizes-container');
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.innerHTML = `
+            <input type="text" class="form-control" name="size_ids[]" placeholder="Название размера">
+            <input type="number" class="form-control" name="size_adjustments[]" placeholder="Доплата за размер">
+        `;
+        container.appendChild(div);
+    });
+
+    document.getElementById('add-color').addEventListener('click', function() {
+        const container = document.getElementById('colors-container');
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.innerHTML = `
+            <input type="text" class="form-control" name="color_ids[]" placeholder="Название цвета">
+            <input type="number" class="form-control" name="color_adjustments[]" placeholder="Доплата за цвет">
+        `;
+        container.appendChild(div);
+    });
+</script>
 {% endblock %}

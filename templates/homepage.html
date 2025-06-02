@@ -29,11 +29,40 @@
                 <div class="card-body d-flex flex-column">
                     <h5 class="card-title">{{ item.title }}</h5>
                     <p class="card-text">{{ item.text|truncate(100) }}</p>
+
+                    <!-- Выбор размера -->
+                    <div class="mb-3">
+                        <label for="size-{{ item.id }}" class="form-label">Размер:</label>
+                        <select class="form-select" id="size-{{ item.id }}">
+                            <option selected disabled value="0">Выберите размер</option>
+                            {% if item.sizes %}
+                                {% for size_id, adjustment in item.sizes.items() %}
+                                    <option value="{{ adjustment }}">{{ size_id }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    <!-- Выбор цвета -->
+                    <div class="mb-3">
+                        <label for="color-{{ item.id }}" class="form-label">Цвет:</label>
+                        <select class="form-select" id="color-{{ item.id }}">
+                            <option selected disabled value="0">Выберите цвет</option>
+                            {% if item.colors %}
+                                {% for color_id, adjustment in item.colors.items() %}
+                                    <option value="{{ adjustment }}">{{ color_id }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+
                     <div class="mt-auto">
-                        <h4 class="text-primary">{{ item.price }} <small class="text-body-secondary">руб.</small></h4>
+                        <h4 class="text-primary" id="price-{{ item.id }}">{{ item.price }} <small class="text-body-secondary">руб.</small></h4>
                         <div class="d-grid gap-2 mt-3">
                             <form action="{{ url_for('add_to_cart') }}" method="post">
                                 <input type="hidden" name="item_id" value="{{ item.id }}">
+                                <input type="hidden" id="size-adjustment-{{ item.id }}" name="size_adjustment" value="0">
+                                <input type="hidden" id="color-adjustment-{{ item.id }}" name="color_adjustment" value="0">
                                 <button type="submit" class="btn btn-primary">В корзину</button>
                             </form>
                         </div>
@@ -45,13 +74,41 @@
     </div>
 </main>
 
-<!--&lt;!&ndash; Добавим скрипт для показа модального окна &ndash;&gt;-->
-<!--<script>-->
-<!--    $(document).ready(function() {-->
-<!--        {% if 'show_cart_notification' in session and session['show_cart_notification'] %}-->
-<!--            $('#cartModal').modal('show');-->
-<!--            {% set _ = session.pop('show_cart_notification', None) %}-->
-<!--        {% endif %}-->
-<!--    });-->
-<!--</script>-->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% for item in data %}
+    const sizeSelect{{ item.id }} = document.getElementById('size-{{ item.id }}');
+    const colorSelect{{ item.id }} = document.getElementById('color-{{ item.id }}');
+    const priceElement{{ item.id }} = document.getElementById('price-{{ item.id }}');
+    const sizeAdjustmentInput{{ item.id }} = document.getElementById('size-adjustment-{{ item.id }}');
+    const colorAdjustmentInput{{ item.id }} = document.getElementById('color-adjustment-{{ item.id }}');
+    const basePrice{{ item.id }} = {{ item.price }};
+
+    function updatePrice{{ item.id }}() {
+        let totalPrice = basePrice{{ item.id }};
+        let sizeAdjustment = 0;
+        let colorAdjustment = 0;
+
+        if (sizeSelect{{ item.id }}.value) {
+            sizeAdjustment = parseInt(sizeSelect{{ item.id }}.value);
+            sizeAdjustmentInput{{ item.id }}.value = sizeAdjustment;
+        }
+        if (colorSelect{{ item.id }}.value) {
+            colorAdjustment = parseInt(colorSelect{{ item.id }}.value);
+            colorAdjustmentInput{{ item.id }}.value = colorAdjustment;
+        }
+
+        totalPrice += sizeAdjustment + colorAdjustment;
+        priceElement{{ item.id }}.textContent = totalPrice + ' руб.';
+    }
+
+    if (sizeSelect{{ item.id }}) {
+        sizeSelect{{ item.id }}.addEventListener('change', updatePrice{{ item.id }});
+    }
+    if (colorSelect{{ item.id }}) {
+        colorSelect{{ item.id }}.addEventListener('change', updatePrice{{ item.id }});
+    }
+    {% endfor %}
+});
+</script>
 {% endblock %}

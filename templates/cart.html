@@ -21,22 +21,22 @@
                 </tr>
             </thead>
             <tbody>
-                {% for item in cart_items %}
+                {% for cart_item in cart_items %}
                 <tr>
-                    <td>{{ item.title }}</td>
-                    <td>{{ item.price }} руб.</td>
+                    <td>{{ cart_item.item.title }}</td>
+                    <td>{{ cart_item.price }} руб.</td>
                     <td>
                         <form action="{{ url_for('update_cart') }}" method="post" class="d-flex">
-                            <input type="hidden" name="item_id" value="{{ item.id }}">
+                            <input type="hidden" name="item_id" value="{{ cart_item.item.id }}">
                             <button type="submit" name="action" value="decrease" class="btn btn-outline-secondary">-</button>
-                            <input type="text" class="form-control mx-2 text-center" value="{{ item.quantity }}" readonly>
+                            <input type="text" class="form-control mx-2 text-center" value="{{ cart_item.quantity }}" readonly>
                             <button type="submit" name="action" value="increase" class="btn btn-outline-secondary">+</button>
                         </form>
                     </td>
-                    <td>{{ item.price * item.quantity }} руб.</td>
+                    <td>{{ cart_item.price * cart_item.quantity }} руб.</td>
                     <td>
                         <form action="{{ url_for('remove_from_cart') }}" method="post">
-                            <input type="hidden" name="item_id" value="{{ item.id }}">
+                            <input type="hidden" name="item_id" value="{{ cart_item.item.id }}">
                             <button type="submit" class="btn btn-danger">Удалить</button>
                         </form>
                     </td>

@@ -1,10 +1,11 @@
 import os
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
+import json
 
 '''
 admin
@@ -14,7 +15,10 @@ admin@example.com
 '''
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///shop.db'
+# Замените строку с конфигурацией БД на:
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///shop.db')
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith("postgres://"):
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['SECRET_KEY'] = '123'
@@ -50,26 +54,39 @@ def load_user(user_id):
 
 class Item(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String, nullable=False)
+    title = db.Column(db.String(100), nullable=False)
     price = db.Column(db.Integer, nullable=False)
-    photo_path = db.Column(db.String)
+    photo_path = db.Column(db.String(255))
     text = db.Column(db.Text)
     isActive = db.Column(db.Boolean, default=True)
+    sizes = db.Column(db.JSON)  # Хранит информацию о размерах и доплате
+    colors = db.Column(db.JSON)  # Хранит информацию о цветах и доплате
+
 
 class CartItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     item_id = db.Column(db.Integer, db.ForeignKey('item.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
+    price = db.Column(db.Integer, nullable=False)  # Добавьте эту строку
     user = db.relationship('User', backref=db.backref('cart_items', lazy=True))
     item = db.relationship('Item', backref=db.backref('cart_items', lazy=True))
 
+
+
+import json
 
 @app.route('/')
 def homepage():
     items = Item.query.filter_by(isActive=True).order_by(Item.price).all()
 
-    # Получаем количество товаров в корзине текущего пользователя
+    # Десериализация JSON данных
+    for item in items:
+        if item.sizes and isinstance(item.sizes, str):
+            item.sizes = json.loads(item.sizes)
+        if item.colors and isinstance(item.colors, str):
+            item.colors = json.loads(item.colors)
+
     cart_items_count = 0
     if current_user.is_authenticated:
         cart_items = CartItem.query.filter_by(user_id=current_user.id).all()
@@ -78,23 +95,29 @@ def homepage():
     return render_template('homepage.html', data=items, cart_items_count=cart_items_count)
 
 
+
+
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
 def admin():
-    # Простая проверка на админа (в реальном проекте лучше использовать роли)
     if current_user.username != 'admin':
         flash('Доступ запрещен', 'danger')
         return redirect(url_for('homepage'))
 
-    # Обработка добавления товара
+    # Получаем количество товаров в корзине текущего пользователя
+    cart_items_count = 0
+    if current_user.is_authenticated:
+        cart_items = CartItem.query.filter_by(user_id=current_user.id).all()
+        cart_items_count = sum(item.quantity for item in cart_items)
+
     if request.method == 'POST' and 'title' in request.form:
         try:
             title = request.form.get('title')
-            price = int(request.form.get('price'))
+            price = int(request.form.get('price')) if request.form.get('price') else 0
+
             text = request.form.get('text')
             isActive = True if request.form.get('isActive') == 'on' else False
 
-            # Обработка загрузки изображения
             photo_path = None
             photo = request.files.get('photo_path')
             if photo and photo.filename != '':
@@ -102,12 +125,38 @@ def admin():
                 photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                 photo_path = f'uploads/{filename}'
 
+            # Обработка размеров
+            size_ids = request.form.getlist('size_ids[]')
+            size_adjustments = request.form.getlist('size_adjustments[]')
+            sizes = {}
+            for size_id, adjustment in zip(size_ids, size_adjustments):
+                if size_id and adjustment:  # Проверка на пустые значения
+                    try:
+                        sizes[size_id] = int(adjustment)
+                    except ValueError:
+                        sizes[size_id] = 0
+            sizes = json.dumps(sizes)
+
+            # Обработка цветов
+            color_ids = request.form.getlist('color_ids[]')
+            color_adjustments = request.form.getlist('color_adjustments[]')
+            colors = {}
+            for color_id, adjustment in zip(color_ids, color_adjustments):
+                if color_id and adjustment:  # Проверка на пустые значения
+                    try:
+                        colors[color_id] = int(adjustment)
+                    except ValueError:
+                        colors[color_id] = 0
+            colors = json.dumps(colors)
+
             new_item = Item(
                 title=title,
                 price=price,
                 text=text,
                 photo_path=photo_path,
-                isActive=isActive
+                isActive=isActive,
+                sizes=sizes,
+                colors=colors
             )
 
             db.session.add(new_item)
@@ -118,13 +167,11 @@ def admin():
         except Exception as e:
             db.session.rollback()
             flash(f'Ошибка при добавлении товара: {str(e)}', 'danger')
-            return redirect(url_for('admin'))
 
-    # Получаем списки товаров и пользователей
     items = Item.query.order_by(Item.id).all()
     users = User.query.order_by(User.id).all()
 
-    return render_template('admin.html', items=items, users=users)
+    return render_template('admin.html', items=items, users=users, cart_items_count=cart_items_count)
 
 
 @app.route('/admin/delete_item/<int:item_id>', methods=['POST'])
@@ -184,6 +231,13 @@ def add_to_cart():
     item = Item.query.get_or_404(item_id)
     user_id = current_user.id
 
+    # Получаем выбранные размер и цвет, если они есть
+    size_adjustment = int(request.form.get('size_adjustment', 0))
+    color_adjustment = int(request.form.get('color_adjustment', 0))
+
+    # Вычисляем итоговую цену с учетом доплат за размер и цвет
+    final_price = item.price + size_adjustment + color_adjustment
+
     # Проверяем, есть ли уже такой товар в корзине пользователя
     cart_item = CartItem.query.filter_by(user_id=user_id, item_id=item_id).first()
 
@@ -192,11 +246,12 @@ def add_to_cart():
         cart_item.quantity += 1
     else:
         # Если товара нет в корзине, добавляем его
-        cart_item = CartItem(user_id=user_id, item_id=item_id, quantity=1)
+        cart_item = CartItem(user_id=user_id, item_id=item_id, quantity=1, price=final_price)
         db.session.add(cart_item)
 
     db.session.commit()
     return redirect(url_for('homepage'))
+
 
 @app.route('/update_cart', methods=['POST'])
 @login_required
@@ -248,11 +303,16 @@ def cart():
         if item:
             item.quantity = cart_item.quantity
             item.total_price = item.price * cart_item.quantity
-            items.append(item)
+            items.append(cart_item)
             total_price += item.total_price
             total_items += cart_item.quantity
 
-    return render_template('cart.html', cart_items=items, total_price=total_price, total_items=total_items, cart_items_count=total_items)
+    # Получаем количество товаров в корзине текущего пользователя
+    cart_items_count = total_items
+
+    return render_template('cart.html', cart_items=items, total_price=total_price, total_items=total_items, cart_items_count=cart_items_count)
+
+
 
 
 @app.route('/clear_cart', methods=['POST'])
